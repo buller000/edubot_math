@@ -1,0 +1,3514 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EduBot Maths Ultra</title>
+
+<style>
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+
+body{
+  font-family:Arial,sans-serif;
+  background:#101820;
+  color:white;
+  min-height:100vh;
+}
+
+header{
+  background:#1976d2;
+  padding:16px;
+  text-align:center;
+  font-size:24px;
+  font-weight:bold;
+}
+
+#app{
+  width:95%;
+  max-width:900px;
+  margin:auto;
+  padding:12px;
+}
+
+#chat{
+  height:55vh;
+  overflow-y:auto;
+  padding:12px;
+  background:#18232b;
+  border-radius:12px;
+  margin-bottom:12px;
+}
+
+.message{
+  padding:12px;
+  margin:8px 0;
+  border-radius:12px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+
+.bot{
+  background:#263238;
+}
+
+.user{
+  background:#1976d2;
+  text-align:right;
+}
+
+#zoneSaisie{
+  display:flex;
+  gap:8px;
+}
+
+#question{
+  flex:1;
+  padding:14px;
+  border:0;
+  border-radius:10px;
+  font-size:16px;
+  outline:none;
+}
+
+button{
+  border:0;
+  border-radius:10px;
+  padding:12px 16px;
+  background:#1976d2;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+button:active{
+  transform:scale(.97);
+}
+</style>
+</head>
+
+<>
+
+<header>🧠 EduBot Maths Ultra</header>
+
+<div id="app">
+
+<div id="chat">
+<div class="message bot">
+👋 Bonjour ! Je suis EduBot Maths Ultra.
+
+Pose-moi un problème de mathématiques.
+</div>
+</div>
+
+<div id="zoneSaisie">
+<input id="question"
+       type="text"
+       placeholder="Écris ton problème...">
+<button id="envoyer">➤</button>
+</div>
+
+</div>
+<script>
+
+const chat = document.getElementById("chat");
+const question = document.getElementById("question");
+const envoyer = document.getElementById("envoyer");
+
+function ajouterMessage(texte, type){
+  const message = document.createElement("div");
+  message.className = "message " + type;
+  message.textContent = texte;
+  chat.appendChild(message);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function nettoyer(texte){
+  return texte
+    .toLowerCase()
+    .replace(/,/g,".")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function repondre(){
+
+  const texte = question.value.trim();
+
+  if(!texte) return;
+
+  ajouterMessage(texte,"user");
+
+  question.value = "";
+
+  const q = nettoyer(texte);
+
+  let reponse = analyserMaths(q);
+
+  ajouterMessage(reponse,"bot");
+}
+
+envoyer.addEventListener("click",repondre);
+
+question.addEventListener("keydown",function(e){
+  if(e.key === "Enter"){
+    repondre();
+  }
+});
+
+function analyserMaths(q){
+
+  if(q.includes("bonjour") || q.includes("salut")){
+    return "👋 Bonjour ! Pose-moi ton problème de maths.";
+  }
+
+  if(q.includes("merci")){
+    return "😊 Avec plaisir ! On continue les maths ?";
+  }
+
+  return "🔎 Je vais analyser ton problème...\n\nLe moteur mathématique sera ajouté dans les prochains fragments.";
+}
+
+</script>
+<script>
+
+/* =========================
+   MOTEUR DE CALCUL
+   ========================= */
+
+function calculerExpression(expression){
+
+  try{
+
+    let e = expression
+      .replace(/×/g,"*")
+      .replace(/÷/g,"/")
+      .replace(/−/g,"-")
+      .replace(/,/g,".")
+      .replace(/\^/g,"**")
+      .replace(/√/g,"Math.sqrt");
+
+    if(!/^[0-9+\-*/().\s%Mathsqrt]+$/.test(e)){
+      return null;
+    }
+
+    let resultat = Function(
+      '"use strict";return (' + e + ')'
+    )();
+
+    if(typeof resultat !== "number" || !isFinite(resultat)){
+      return null;
+    }
+
+    return resultat;
+
+  }catch(erreur){
+
+    return null;
+
+  }
+
+}
+
+
+/* =========================
+   FORMATAGE DES NOMBRES
+   ========================= */
+
+function formaterNombre(n){
+
+  if(!isFinite(n)){
+    return "résultat impossible";
+  }
+
+  if(Math.abs(n-Math.round(n)) < 1e-10){
+    return String(Math.round(n));
+  }
+
+  return Number(n.toFixed(10)).toString();
+
+}
+
+
+/* =========================
+   POURCENTAGES
+   ========================= */
+
+function calculerPourcentage(q){
+
+  let match = q.match(
+    /(\d+(?:\.\d+)?)\s*%\s*(?:de|sur)\s*(\d+(?:\.\d+)?)/i
+  );
+
+  if(!match) return null;
+
+  let pourcentage = parseFloat(match[1]);
+  let nombre = parseFloat(match[2]);
+
+  let resultat = pourcentage * nombre / 100;
+
+  return {
+    resultat: resultat,
+    explication:
+      pourcentage + "% de " + nombre +
+      "\n\n= " + pourcentage + " × " + nombre +
+      " ÷ 100" +
+      "\n= " + formaterNombre(resultat)
+  };
+
+}
+
+
+/* =========================
+   FRACTIONS SIMPLES
+   ========================= */
+
+function pgcd(a,b){
+
+  a = Math.abs(a);
+  b = Math.abs(b);
+
+  while(b !== 0){
+
+    let reste = a % b;
+
+    a = b;
+    b = reste;
+
+  }
+
+  return a;
+
+}
+
+
+function additionFractions(a,b,c,d){
+
+  let numerateur = a*d + b*c;
+  let denominateur = b*d;
+
+  let diviseur = pgcd(
+    numerateur,
+    denominateur
+  );
+
+  numerateur /= diviseur;
+  denominateur /= diviseur;
+
+  return {
+    numerateur:numerateur,
+    denominateur:denominateur
+  };
+
+}
+
+</script>
+<script>
+
+/* =========================
+   FRACTIONS
+   ========================= */
+
+function fractionVersNombre(n,d){
+
+  if(d === 0) return null;
+
+  return n / d;
+
+}
+
+function simplifierFraction(n,d){
+
+  if(d === 0) return null;
+
+  if(d < 0){
+    n = -n;
+    d = -d;
+  }
+
+  let diviseur = pgcd(n,d);
+
+  return {
+    n:n/diviseur,
+    d:d/diviseur
+  };
+
+}
+
+function fractionTexte(n,d){
+
+  let f = simplifierFraction(n,d);
+
+  if(!f) return "Fraction impossible";
+
+  if(f.d === 1){
+    return String(f.n);
+  }
+
+  return f.n + "/" + f.d;
+
+}
+
+
+/* =========================
+   ADDITION DE FRACTIONS
+   ========================= */
+
+function additionFractionTexte(a,b,c,d){
+
+  let resultat = additionFractions(a,b,c,d);
+
+  return fractionTexte(
+    resultat.numerateur,
+    resultat.denominateur
+  );
+
+}
+
+
+/* =========================
+   MULTIPLICATION DE FRACTIONS
+   ========================= */
+
+function multiplicationFractions(a,b,c,d){
+
+  let n = a*c;
+  let d2 = b*d;
+
+  return fractionTexte(n,d2);
+
+}
+
+
+/* =========================
+   DIVISION DE FRACTIONS
+   ========================= */
+
+function divisionFractions(a,b,c,d){
+
+  if(c === 0) return null;
+
+  let n = a*d;
+  let d2 = b*c;
+
+  return fractionTexte(n,d2);
+
+}
+
+
+/* =========================
+   DÉTECTION D'UNE FRACTION
+   ========================= */
+
+function analyserFraction(q){
+
+  let m = q.match(
+    /^\s*(-?\d+)\s*\/\s*(-?\d+)\s*([+\-*÷])\s*(-?\d+)\s*\/\s*(-?\d+)\s*$/
+  );
+
+  if(!m) return null;
+
+  let a = Number(m[1]);
+  let b = Number(m[2]);
+  let operation = m[3];
+  let c = Number(m[4]);
+  let d = Number(m[5]);
+
+  if(b === 0 || d === 0){
+    return "❌ Une fraction ne peut pas avoir 0 comme dénominateur.";
+  }
+
+  let resultat;
+  let symbole = operation;
+
+  if(operation === "+"){
+    resultat = additionFractionTexte(a,b,c,d);
+  }
+
+  else if(operation === "-"){
+    resultat = additionFractionTexte(a,b,-c,d);
+  }
+
+  else if(operation === "*"){
+    resultat = multiplicationFractions(a,b,c,d);
+  }
+
+  else if(operation === "÷"){
+    resultat = divisionFractions(a,b,c,d);
+  }
+
+  if(resultat === null){
+    return "❌ Division impossible.";
+  }
+
+  return (
+    "🧮 Fraction détectée\n\n" +
+    a + "/" + b + " " + symbole + " " +
+    c + "/" + d +
+    "\n\n➡️ Résultat : " + resultat
+  );
+
+}
+
+  </script>
+  <script>
+
+/* =========================
+   CALCULS CLASSIQUES
+   ========================= */
+
+function analyserCalculClassique(q){
+
+  let expression = q
+    .replace(/combien font/gi,"")
+    .replace(/calcule/gi,"")
+    .replace(/calculer/gi,"")
+    .replace(/résous/gi,"")
+    .replace(/resous/gi,"")
+    .replace(/=/g,"")
+    .trim();
+
+  /* Remplacement des symboles */
+  expression = expression
+    .replace(/×/g,"*")
+    .replace(/x/g,"*")
+    .replace(/÷/g,"/")
+    .replace(/−/g,"-");
+
+  /* Vérification */
+  if(!/[0-9]/.test(expression)){
+    return null;
+  }
+
+  let resultat = calculerExpression(expression);
+
+  if(resultat === null){
+    return null;
+  }
+
+  return (
+    "🧮 Calcul\n\n" +
+    expression +
+    "\n\n" +
+    "➡️ Résultat : " +
+    formaterNombre(resultat)
+  );
+
+}
+
+
+/* =========================
+   RACINES CARRÉES
+   ========================= */
+
+function analyserRacine(q){
+
+  let m = q.match(
+    /(?:√|racine carrée de)\s*(-?\d+(?:\.\d+)?)/i
+  );
+
+  if(!m) return null;
+
+  let nombre = Number(m[1]);
+
+  if(nombre < 0){
+    return "❌ La racine carrée d'un nombre négatif n'est pas un nombre réel.";
+  }
+
+  let resultat = Math.sqrt(nombre);
+
+  return (
+    "√" + nombre +
+    "\n\n= " +
+    formaterNombre(resultat)
+  );
+
+}
+
+
+/* =========================
+   PUISSANCES
+   ========================= */
+
+function analyserPuissance(q){
+
+  let m = q.match(
+    /(-?\d+(?:\.\d+)?)\s*(?:\^|\*\*)\s*(-?\d+(?:\.\d+)?)/ 
+  );
+
+  if(!m) return null;
+
+  let base = Number(m[1]);
+  let exposant = Number(m[2]);
+
+  let resultat = Math.pow(base,exposant);
+
+  return (
+    "⚡ Puissance\n\n" +
+    base + "^" + exposant +
+    "\n\n" +
+    "➡️ Résultat : " +
+    formaterNombre(resultat)
+  );
+
+}
+
+
+/* =========================
+   TEST AUTOMATIQUE DU MOTEUR
+   ========================= */
+
+function moteurCalcul(q){
+
+  /* Pourcentage */
+  let pourcentage = calculerPourcentage(q);
+
+  if(pourcentage){
+    return (
+      "📊 Pourcentage\n\n" +
+      pourcentage.explication
+    );
+  }
+
+
+  /* Fraction */
+  let fraction = analyserFraction(q);
+
+  if(fraction){
+    return fraction;
+  }
+
+
+  /* Racine */
+  let racine = analyserRacine(q);
+
+  if(racine){
+    return "√ " + racine;
+  }
+
+
+  /* Puissance */
+  let puissance = analyserPuissance(q);
+
+  if(puissance){
+    return puissance;
+  }
+
+
+  /* Calcul classique */
+  let calcul = analyserCalculClassique(q);
+
+  if(calcul){
+    return calcul;
+  }
+
+
+  return null;
+
+}
+
+     </script>
+     <script>
+
+/* =========================
+   ÉQUATIONS DU 1er DEGRÉ
+   ========================= */
+
+function resoudrePremierDegre(q){
+
+  let equation = q
+    .replace(/résous/gi,"")
+    .replace(/resous/gi,"")
+    .replace(/résoudre/gi,"")
+    .replace(/résoudre l'équation/gi,"")
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .trim();
+
+  if(!equation.includes("=")){
+    return null;
+  }
+
+  /* Recherche d'une équation contenant x */
+  if(!/[xX]/.test(equation)){
+    return null;
+  }
+
+  let parties = equation.split("=");
+
+  if(parties.length !== 2){
+    return null;
+  }
+
+  let gauche = parties[0].toLowerCase();
+  let droite = parties[1];
+
+  /*
+   * On transforme l'équation en :
+   *
+   * ax + b = c
+   *
+   */
+
+  let A = 0;
+  let B = 0;
+  let C = 0;
+
+  /* =========================
+     MEMBRE GAUCHE
+     ========================= */
+
+  let termes = gauche
+    .replace(/-/g,"+-")
+    .split("+")
+    .filter(t => t !== "");
+
+  for(let terme of termes){
+
+    if(terme.includes("x")){
+
+      let coefficient =
+        terme.replace("x","");
+
+      if(coefficient === "" ||
+         coefficient === "+"){
+        coefficient = 1;
+      }
+
+      else if(coefficient === "-"){
+        coefficient = -1;
+      }
+
+      A += Number(coefficient);
+
+    }else{
+
+      B += Number(terme);
+
+    }
+
+  }
+
+  /* =========================
+     MEMBRE DROIT
+     ========================= */
+
+  C = Number(droite);
+
+  if(!isFinite(A) || !isFinite(B) || !isFinite(C)){
+    return null;
+  }
+
+  /* =========================
+     CAS PARTICULIERS
+     ========================= */
+
+  if(A === 0 && B === C){
+
+    return (
+      "♾️ Cette équation possède une infinité de solutions.\n\n" +
+      "Tous les nombres réels sont solutions."
+    );
+
+  }
+
+  if(A === 0 && B !== C){
+
+    return (
+      "❌ Cette équation n'a aucune solution."
+    );
+
+  }
+
+
+  /* =========================
+     CALCUL
+     ========================= */
+
+  let x = (C - B) / A;
+
+
+  /* =========================
+     EXPLICATION
+     ========================= */
+
+  let etapes =
+    "🧠 Équation du 1er degré\n\n" +
+
+    "Équation :\n" +
+    equation + "\n\n" +
+
+    "1️⃣ Regrouper les termes :\n" +
+    A + "x + " + B + " = " + C + "\n\n" +
+
+    "2️⃣ Déplacer le terme constant :\n" +
+    A + "x = " + (C - B) + "\n\n" +
+
+    "3️⃣ Diviser par " + A + " :\n" +
+    "x = (" + C + " - " + B + ") / " + A + "\n\n" +
+
+    "✅ Solution :\n" +
+    "x = " + formaterNombre(x);
+
+  return etapes;
+
+}
+
+
+/* =========================
+   TEST ÉQUATION
+   ========================= */
+
+function moteurEquation(q){
+
+  if(!q.includes("=")){
+    return null;
+  }
+
+  if(!/[xX]/.test(q)){
+    return null;
+  }
+
+  return resoudrePremierDegre(q);
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   ÉQUATIONS DU 2e DEGRÉ
+   ========================= */
+
+function resoudreSecondDegre(q){
+
+  let e = q
+    .replace(/résous/gi,"")
+    .replace(/resous/gi,"")
+    .replace(/résoudre/gi,"")
+    .replace(/équation/gi,"")
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .replace(/²/g,"^2")
+    .replace(/X/g,"x");
+
+  if(!e.includes("=") || !e.includes("x")){
+    return null;
+  }
+
+  let morceaux = e.split("=");
+
+  if(morceaux.length !== 2){
+    return null;
+  }
+
+  let gauche = morceaux[0];
+  let droite = morceaux[1];
+
+  if(droite !== "0"){
+    return null;
+  }
+
+  /* =========================
+     FORME x²
+     ========================= */
+
+  let a = 0;
+  let b = 0;
+  let c = 0;
+
+  let termes = gauche
+    .replace(/-/g,"+-")
+    .split("+")
+    .filter(t => t !== "");
+
+  for(let terme of termes){
+
+    if(terme.includes("x^2")){
+
+      let coefficient =
+        terme.replace("x^2","");
+
+      if(coefficient === "" ||
+         coefficient === "+"){
+        coefficient = 1;
+      }
+
+      else if(coefficient === "-"){
+        coefficient = -1;
+      }
+
+      a += Number(coefficient);
+
+    }
+
+    else if(terme.includes("x")){
+
+      let coefficient =
+        terme.replace("x","");
+
+      if(coefficient === "" ||
+         coefficient === "+"){
+        coefficient = 1;
+      }
+
+      else if(coefficient === "-"){
+        coefficient = -1;
+      }
+
+      b += Number(coefficient);
+
+    }
+
+    else{
+
+      c += Number(terme);
+
+    }
+
+  }
+
+  if(
+    !isFinite(a) ||
+    !isFinite(b) ||
+    !isFinite(c) ||
+    a === 0
+  ){
+    return null;
+  }
+
+
+  /* =========================
+     DISCRIMINANT
+     ========================= */
+
+  let delta = b*b - 4*a*c;
+
+
+  /* =========================
+     DELTA POSITIF
+     ========================= */
+
+  if(delta > 0){
+
+    let x1 =
+      (-b - Math.sqrt(delta)) /
+      (2*a);
+
+    let x2 =
+      (-b + Math.sqrt(delta)) /
+      (2*a);
+
+    return (
+      "🧠 Équation du 2e degré\n\n" +
+
+      "Équation :\n" +
+      gauche + " = 0\n\n" +
+
+      "📌 Coefficients :\n" +
+      "a = " + a + "\n" +
+      "b = " + b + "\n" +
+      "c = " + c + "\n\n" +
+
+      "1️⃣ Calcul du discriminant :\n" +
+      "Δ = b² - 4ac\n" +
+      "Δ = " + b + "² - 4 × " +
+      a + " × " + c + "\n" +
+      "Δ = " + delta + "\n\n" +
+
+      "2️⃣ Comme Δ > 0, il existe deux solutions.\n\n" +
+
+      "x₁ = (-b - √Δ) / 2a\n" +
+      "x₁ = " + formaterNombre(x1) + "\n\n" +
+
+      "x₂ = (-b + √Δ) / 2a\n" +
+      "x₂ = " + formaterNombre(x2) + "\n\n" +
+
+      "✅ Solutions :\n" +
+      "x₁ = " + formaterNombre(x1) +
+      "\n" +
+      "x₂ = " + formaterNombre(x2)
+    );
+
+  }
+
+
+  /* =========================
+     DELTA = 0
+     ========================= */
+
+  if(delta === 0){
+
+    let x =
+      -b / (2*a);
+
+    return (
+      "🧠 Équation du 2e degré\n\n" +
+
+      "Δ = b² - 4ac\n" +
+      "Δ = " + delta + "\n\n" +
+
+      "Comme Δ = 0, il existe une seule solution.\n\n" +
+
+      "x = -b / 2a\n" +
+      "x = " + formaterNombre(x) + "\n\n" +
+
+      "✅ Solution : x = " +
+      formaterNombre(x)
+    );
+
+  }
+
+
+  /* =========================
+     DELTA NÉGATIF
+     ========================= */
+
+  return (
+    "🧠 Équation du 2e degré\n\n" +
+
+    "Δ = b² - 4ac\n" +
+    "Δ = " + delta + "\n\n" +
+
+    "❌ Δ < 0 : cette équation n'a " +
+    "pas de solution réelle."
+  );
+
+}
+
+
+/* =========================
+   DÉTECTION DU 2e DEGRÉ
+   ========================= */
+
+function moteurSecondDegre(q){
+
+  if(!q.includes("=")){
+    return null;
+  }
+
+  if(
+    q.includes("x²") ||
+    q.includes("x^2") ||
+    q.includes("x*x")
+  ){
+
+    return resoudreSecondDegre(q);
+
+  }
+
+  return null;
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   INÉQUATIONS DU 1er DEGRÉ
+   ========================= */
+
+function resoudreInequation(q){
+
+  let e = q
+    .replace(/résous/gi,"")
+    .replace(/resous/gi,"")
+    .replace(/inéquation/gi,"")
+    .replace(/inequation/gi,"")
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .toLowerCase();
+
+  let signe = null;
+
+  if(e.includes("<=")){
+    signe = "<=";
+  }else if(e.includes(">=")){
+    signe = ">=";
+  }else if(e.includes("<")){
+    signe = "<";
+  }else if(e.includes(">")){
+    signe = ">";
+  }
+
+  if(!signe || !e.includes("x")){
+    return null;
+  }
+
+  let morceaux = e.split(signe);
+
+  if(morceaux.length !== 2){
+    return null;
+  }
+
+  let gauche = morceaux[0];
+  let droite = Number(morceaux[1]);
+
+  if(!isFinite(droite)){
+    return null;
+  }
+
+  let A = 0;
+  let B = 0;
+
+  let termes = gauche
+    .replace(/-/g,"+-")
+    .split("+")
+    .filter(t => t !== "");
+
+  for(let terme of termes){
+
+    if(terme.includes("x")){
+
+      let coefficient =
+        terme.replace("x","");
+
+      if(coefficient === ""){
+        coefficient = 1;
+      }
+
+      if(coefficient === "-"){
+        coefficient = -1;
+      }
+
+      A += Number(coefficient);
+
+    }else{
+
+      B += Number(terme);
+
+    }
+
+  }
+
+  if(!isFinite(A) || !isFinite(B)){
+    return null;
+  }
+
+  if(A === 0){
+
+    let vrai = false;
+
+    if(signe === "<"){
+      vrai = B < droite;
+    }
+
+    if(signe === ">"){
+      vrai = B > droite;
+    }
+
+    if(signe === "<="){
+      vrai = B <= droite;
+    }
+
+    if(signe === ">="){
+      vrai = B >= droite;
+    }
+
+    return vrai
+      ? "♾️ Tous les nombres réels sont solutions."
+      : "❌ Aucune solution.";
+  }
+
+  let valeur = (droite - B) / A;
+
+  let nouveauSigne = signe;
+
+  if(A < 0){
+
+    if(signe === "<") nouveauSigne = ">";
+    if(signe === ">") nouveauSigne = "<";
+    if(signe === "<=") nouveauSigne = ">=";
+    if(signe === ">=") nouveauSigne = "<=";
+
+  }
+
+  return (
+    "📐 Inéquation du 1er degré\n\n" +
+
+    "Équation :\n" +
+    gauche + " " + signe + " " + droite +
+    "\n\n" +
+
+    "1️⃣ On regroupe les termes :\n" +
+    A + "x + " + B +
+    " " + signe + " " + droite +
+    "\n\n" +
+
+    "2️⃣ On isole x :\n" +
+    A + "x " + signe +
+    " " + (droite - B) +
+    "\n\n" +
+
+    "3️⃣ On obtient :\n" +
+    "x " + nouveauSigne + " " +
+    formaterNombre(valeur) +
+    "\n\n" +
+
+    "✅ Solution :\n" +
+    "x " + nouveauSigne + " " +
+    formaterNombre(valeur)
+  );
+
+}
+
+
+/* =========================
+   DÉTECTION
+   ========================= */
+
+function moteurInequation(q){
+
+  if(
+    q.includes("<") ||
+    q.includes(">") ||
+    q.includes("<=") ||
+    q.includes(">=")
+  ){
+
+    if(q.includes("x")){
+      return resoudreInequation(q);
+    }
+
+  }
+
+  return null;
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   SYSTÈMES 2×2
+   ========================= */
+
+function resoudreSysteme(q){
+
+  let e = q
+    .replace(/résous/gi,"")
+    .replace(/resous/gi,"")
+    .replace(/système/gi,"")
+    .replace(/systeme/gi,"")
+    .replace(/équations/gi,"")
+    .replace(/equations/gi,"")
+    .replace(/ /g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .toLowerCase();
+
+  /*
+   * Recherche :
+   * ax + by = c
+   */
+
+  let lignes = e
+    .split(/[;\n]+/)
+    .filter(x => x.includes("="));
+
+  if(lignes.length !== 2){
+    return null;
+  }
+
+  function analyserLigne(ligne){
+
+    let morceaux = ligne.split("=");
+
+    if(morceaux.length !== 2){
+      return null;
+    }
+
+    let gauche = morceaux[0];
+    let droite = Number(morceaux[1]);
+
+    if(!isFinite(droite)){
+      return null;
+    }
+
+    let a = 0;
+    let b = 0;
+
+    gauche = gauche.replace(/-/g,"+-");
+
+    let termes = gauche
+      .split("+")
+      .filter(t => t !== "");
+
+    for(let terme of termes){
+
+      if(terme.includes("x")){
+
+        let c =
+          terme.replace("x","");
+
+        if(c === "") c = 1;
+        if(c === "-") c = -1;
+
+        a += Number(c);
+
+      }
+
+      else if(terme.includes("y")){
+
+        let c =
+          terme.replace("y","");
+
+        if(c === "") c = 1;
+        if(c === "-") c = -1;
+
+        b += Number(c);
+
+      }
+
+      else{
+
+        /* constante ignorée ici */
+
+      }
+
+    }
+
+    return {
+      a:a,
+      b:b,
+      c:droite
+    };
+
+  }
+
+  let eq1 = analyserLigne(lignes[0]);
+  let eq2 = analyserLigne(lignes[1]);
+
+  if(!eq1 || !eq2){
+    return null;
+  }
+
+  let determinant =
+    eq1.a * eq2.b -
+    eq2.a * eq1.b;
+
+  if(determinant === 0){
+
+    return (
+      "❌ Ce système ne possède pas " +
+      "une solution unique."
+    );
+
+  }
+
+  /*
+   * Formules de Cramer
+   */
+
+  let x =
+    (eq1.c * eq2.b -
+     eq2.c * eq1.b) /
+    determinant;
+
+  let y =
+    (eq1.a * eq2.c -
+     eq2.a * eq1.c) /
+    determinant;
+
+  return (
+    "🧠 Système d'équations\n\n" +
+
+    "Équation 1 :\n" +
+    lignes[0] + "\n\n" +
+
+    "Équation 2 :\n" +
+    lignes[1] + "\n\n" +
+
+    "📌 Déterminant :\n" +
+    "D = " + determinant + "\n\n" +
+
+    "📌 Calcul de x :\n" +
+    "x = " +
+    formaterNombre(x) +
+    "\n\n" +
+
+    "📌 Calcul de y :\n" +
+    "y = " +
+    formaterNombre(y) +
+    "\n\n" +
+
+    "✅ Solution :\n" +
+    "(x ; y) = (" +
+    formaterNombre(x) +
+    " ; " +
+    formaterNombre(y) +
+    ")"
+  );
+
+}
+
+
+/* =========================
+   DÉTECTION SYSTÈME
+   ========================= */
+
+function moteurSysteme(q){
+
+  let nombreEgalites =
+    (q.match(/=/g) || []).length;
+
+  let contientX = q.includes("x");
+  let contientY = q.includes("y");
+
+  if(
+    nombreEgalites === 2 &&
+    contientX &&
+    contientY
+  ){
+
+    return resoudreSysteme(q);
+
+  }
+
+  return null;
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   IDENTITÉS REMARQUABLES
+   ========================= */
+
+function analyserIdentite(q){
+
+  let e = q
+    .replace(/\s+/g,"")
+    .replace(/²/g,"^2")
+    .replace(/−/g,"-")
+    .toLowerCase();
+
+  /* (a+b)² */
+
+  let m = e.match(
+    /^\(([-+]?\d+(?:\.\d+)?)\+([-+]?\d+(?:\.\d+)?)\)\^2$/
+  );
+
+  if(m){
+
+    let a = Number(m[1]);
+    let b = Number(m[2]);
+
+    let resultat = Math.pow(a+b,2);
+
+    return (
+      "📐 Identité remarquable\n\n" +
+      "(a + b)² = a² + 2ab + b²\n\n" +
+      "(" + a + " + " + b + ")²\n\n" +
+      "= " + a + "² + 2×" +
+      a + "×" + b + " + " +
+      b + "²\n\n" +
+      "✅ = " + formaterNombre(resultat)
+    );
+
+  }
+
+
+  /* (a-b)² */
+
+  m = e.match(
+    /^\(([-+]?\d+(?:\.\d+)?)-([-+]?\d+(?:\.\d+)?)\)\^2$/
+  );
+
+  if(m){
+
+    let a = Number(m[1]);
+    let b = Number(m[2]);
+
+    let resultat = Math.pow(a-b,2);
+
+    return (
+      "📐 Identité remarquable\n\n" +
+      "(a - b)² = a² - 2ab + b²\n\n" +
+      "(" + a + " - " + b + ")²\n\n" +
+      "✅ = " + formaterNombre(resultat)
+    );
+
+  }
+
+
+  /* (a+b)(a-b) */
+
+  m = e.match(
+    /^\(([-+]?\d+(?:\.\d+)?)\+([-+]?\d+(?:\.\d+)?)\)\(([-+]?\d+(?:\.\d+)?)-([-+]?\d+(?:\.\d+)?)\)$/
+  );
+
+  if(m){
+
+    let a = Number(m[1]);
+    let b = Number(m[2]);
+    let c = Number(m[3]);
+    let d = Number(m[4]);
+
+    if(a === c && b === d){
+
+      let resultat = a*a - b*b;
+
+      return (
+        "📐 Différence de deux carrés\n\n" +
+        "(a+b)(a-b) = a²-b²\n\n" +
+        "✅ = " +
+        formaterNombre(resultat)
+      );
+
+    }
+
+  }
+
+  return null;
+
+}
+
+
+/* =========================
+   DÉVELOPPEMENT SIMPLE
+   ========================= */
+
+function developperProduit(q){
+
+  let e = q
+    .replace(/\s+/g,"")
+    .replace(/×/g,"*")
+    .toLowerCase();
+
+  /*
+   * Exemple :
+   * (x+2)(x+3)
+   */
+
+  let m = e.match(
+    /^\(x([+-]\d+)\)\(x([+-]\d+)\)$/
+  );
+
+  if(!m){
+    return null;
+  }
+
+  let b = Number(m[1]);
+  let c = Number(m[2]);
+
+  let termeX = b+c;
+  let constante = b*c;
+
+  let signeX =
+    termeX >= 0 ? "+" : "-";
+
+  let signeC =
+    constante >= 0 ? "+" : "-";
+
+  return (
+    "🧮 Développement\n\n" +
+
+    "(x" +
+    (b >= 0 ? "+" : "") +
+    b +
+    ")(x" +
+    (c >= 0 ? "+" : "") +
+    c +
+    ")\n\n" +
+
+    "= x² + (" +
+    b + " + " + c +
+    ")x + (" +
+    b + " × " + c +
+    ")\n\n" +
+
+    "✅ = x² " +
+    signeX + " " +
+    Math.abs(termeX) +
+    "x " +
+    signeC + " " +
+    Math.abs(constante)
+  );
+
+}
+
+
+/* =========================
+   MOTEUR ALGÉBRIQUE
+   ========================= */
+
+function moteurAlgebre(q){
+
+  let identite =
+    analyserIdentite(q);
+
+  if(identite){
+    return identite;
+  }
+
+  let developpement =
+    developperProduit(q);
+
+  if(developpement){
+    return developpement;
+  }
+
+  return null;
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   FONCTIONS
+   ========================= */
+
+function analyserFonction(q){
+
+  let e = q
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .toLowerCase();
+
+  /*
+   * Reconnaît :
+   * f(x)=2x+3
+   * f(x)=x^2+4
+   */
+
+  let definition = e.match(
+    /^f\(x\)=([0-9x+\-*^().]+)$/
+  );
+
+  if(definition){
+
+    let expression = definition[1];
+
+    return (
+      "📈 Fonction détectée\n\n" +
+      "f(x) = " + expression +
+      "\n\n" +
+      "La fonction a bien été enregistrée."
+    );
+
+  }
+
+
+  /*
+   * Reconnaît :
+   * f(5)=...
+   * avec une fonction simple donnée
+   */
+
+  let valeur = e.match(
+    /^f\((-?\d+(?:\.\d+)?)\)$/
+  );
+
+  if(valeur){
+
+    let x = Number(valeur[1]);
+
+    return (
+      "📈 Valeur de la fonction\n\n" +
+      "Tu demandes f(" +
+      formaterNombre(x) +
+      ").\n\n" +
+      "Pour calculer cette valeur, " +
+      "EduBot doit connaître l'expression de f(x)."
+    );
+
+  }
+
+  return null;
+
+}
+
+
+/* =========================
+   FONCTION POLYNÔME
+   ========================= */
+
+function calculerFonctionPolynome(expression,x){
+
+  try{
+
+    let e = expression
+      .replace(/x/g,"(" + x + ")")
+      .replace(/\^/g,"**");
+
+    if(!/^[0-9+\-*/().\s*]+$/.test(e)){
+      return null;
+    }
+
+    let resultat =
+      Function(
+        '"use strict";return (' +
+        e +
+        ')'
+      )();
+
+    if(
+      typeof resultat !== "number" ||
+      !isFinite(resultat)
+    ){
+      return null;
+    }
+
+    return resultat;
+
+  }catch(erreur){
+
+    return null;
+
+  }
+
+}
+
+
+/* =========================
+   ÉVALUATION D'UNE FONCTION
+   ========================= */
+
+function evaluerFonction(expression,x){
+
+  let resultat =
+    calculerFonctionPolynome(
+      expression,
+      x
+    );
+
+  if(resultat === null){
+    return null;
+  }
+
+  return (
+    "📈 Calcul de la fonction\n\n" +
+
+    "f(x) = " +
+    expression +
+    "\n\n" +
+
+    "Pour x = " +
+    formaterNombre(x) +
+    " :\n\n" +
+
+    "f(" +
+    formaterNombre(x) +
+    ") = " +
+    formaterNombre(resultat)
+  );
+
+}
+
+    </script>
+    <script>
+
+/* =========================
+   DÉRIVÉES
+   ========================= */
+
+function deriveeTerme(coefficient, puissance){
+
+  if(puissance === 0){
+    return "0";
+  }
+
+  let nouveauCoefficient =
+    coefficient * puissance;
+
+  let nouvellePuissance =
+    puissance - 1;
+
+  if(nouvellePuissance === 0){
+    return formaterNombre(nouveauCoefficient);
+  }
+
+  if(nouvellePuissance === 1){
+
+    if(nouveauCoefficient === 1){
+      return "x";
+    }
+
+    if(nouveauCoefficient === -1){
+      return "-x";
+    }
+
+    return formaterNombre(nouveauCoefficient) + "x";
+  }
+
+  if(nouveauCoefficient === 1){
+    return "x^" + nouvellePuissance;
+  }
+
+  if(nouveauCoefficient === -1){
+    return "-x^" + nouvellePuissance;
+  }
+
+  return (
+    formaterNombre(nouveauCoefficient) +
+    "x^" +
+    nouvellePuissance
+  );
+
+}
+
+
+/* =========================
+   DÉRIVÉE D'UN POLYNÔME
+   ========================= */
+
+function deriveePolynome(expression){
+
+  let e = expression
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .replace(/²/g,"^2")
+    .toLowerCase();
+
+  e = e.replace(/\*/g,"");
+
+  let termes = e
+    .replace(/-/g,"+-")
+    .split("+")
+    .filter(t => t !== "");
+
+  let resultat = [];
+
+  for(let terme of termes){
+
+    let coefficient = 0;
+    let puissance = 0;
+
+    if(terme.includes("x")){
+
+      let parties =
+        terme.split("x");
+
+      let avant = parties[0];
+
+      if(avant === "" || avant === "+"){
+        coefficient = 1;
+      }
+
+      else if(avant === "-"){
+        coefficient = -1;
+      }
+
+      else{
+        coefficient = Number(avant);
+      }
+
+      if(terme.includes("^")){
+
+        let p =
+          terme.split("^")[1];
+
+        puissance = Number(p);
+
+      }else{
+
+        puissance = 1;
+
+      }
+
+    }else{
+
+      coefficient = Number(terme);
+      puissance = 0;
+
+    }
+
+    if(
+      !isFinite(coefficient) ||
+      !isFinite(puissance)
+    ){
+      return null;
+    }
+
+    resultat.push(
+      deriveeTerme(
+        coefficient,
+        puissance
+      )
+    );
+
+  }
+
+  let finale = resultat
+    .filter(t => t !== "0")
+    .join(" + ")
+    .replace(/\+\s-/g,"- ");
+
+  if(finale === ""){
+    finale = "0";
+  }
+
+  return finale;
+
+}
+
+
+/* =========================
+   ANALYSE DE LA DEMANDE
+   ========================= */
+
+function analyserDerivee(q){
+
+  if(
+    !q.includes("dérivée") &&
+    !q.includes("derivee") &&
+    !q.includes("dérive") &&
+    !q.includes("derive")
+  ){
+    return null;
+  }
+
+  let expression = q
+    .replace(/calcule la dérivée/gi,"")
+    .replace(/calculer la dérivée/gi,"")
+    .replace(/trouve la dérivée de/gi,"")
+    .replace(/trouver la dérivée de/gi,"")
+    .replace(/dérivée de/gi,"")
+    .replace(/derivee de/gi,"")
+    .replace(/dérivée/gi,"")
+    .replace(/derivee/gi,"")
+    .trim();
+
+  if(!expression){
+    return "❌ Donne-moi une fonction à dériver.";
+  }
+
+  let resultat =
+    deriveePolynome(expression);
+
+  if(resultat === null){
+    return (
+      "❌ Je n'arrive pas encore à interpréter " +
+      "cette fonction."
+    );
+  }
+
+  return (
+    "📈 Dérivée\n\n" +
+    "Fonction :\n" +
+    "f(x) = " + expression +
+    "\n\n" +
+
+    "Règle utilisée :\n" +
+    "d(x^n)/dx = n×x^(n-1)" +
+    "\n\n" +
+
+    "✅ Résultat :\n" +
+    "f'(x) = " + resultat
+  );
+
+}
+
+        </script>
+        <script>
+
+/* =========================
+   LIMITES
+   ========================= */
+
+function analyserLimite(q){
+
+  if(
+    !q.includes("limite") &&
+    !q.includes("lim")
+  ){
+    return null;
+  }
+
+  let e = q
+    .replace(/calculer/gi,"")
+    .replace(/calcule/gi,"")
+    .replace(/la limite/gi,"")
+    .replace(/limite de/gi,"")
+    .replace(/limite/gi,"")
+    .replace(/lim/gi,"")
+    .trim();
+
+  /*
+   * Exemple reconnu :
+   * x^2+3x+2 quand x tend vers 2
+   */
+
+  let m = e.match(
+    /(.+?)(?:quand|lorsque|pour)\s*x\s*(?:tend vers|->|vers)\s*(-?\d+(?:\.\d+)?)/i
+  );
+
+  if(!m){
+
+    return (
+      "📈 Limite détectée.\n\n" +
+      "Écris par exemple :\n" +
+      "limite de x^2 + 3x quand x tend vers 2"
+    );
+
+  }
+
+  let expression = m[1].trim();
+  let valeur = Number(m[2]);
+
+  let resultat =
+    calculerFonctionPolynome(
+      expression,
+      valeur
+    );
+
+  if(resultat === null){
+
+    return (
+      "❌ Je n'arrive pas à interpréter " +
+      "cette fonction."
+    );
+
+  }
+
+  return (
+    "📈 Calcul d'une limite\n\n" +
+
+    "Fonction :\n" +
+    "f(x) = " + expression +
+    "\n\n" +
+
+    "Quand x tend vers " +
+    formaterNombre(valeur) +
+    " :\n\n" +
+
+    "On remplace x par " +
+    formaterNombre(valeur) +
+    ".\n\n" +
+
+    "f(" +
+    formaterNombre(valeur) +
+    ") = " +
+    formaterNombre(resultat) +
+    "\n\n" +
+
+    "✅ Limite = " +
+    formaterNombre(resultat)
+  );
+
+}
+
+
+/* =========================
+   LIMITE À L'INFINI
+   ========================= */
+
+function limiteInfini(expression){
+
+  let e = expression
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .toLowerCase();
+
+  let m = e.match(
+    /^(-?\d+(?:\.\d+)?)?x\^(\d+)$/
+  );
+
+  if(!m){
+    return null;
+  }
+
+  let coefficient =
+    m[1] === undefined ||
+    m[1] === ""
+      ? 1
+      : Number(m[1]);
+
+  let puissance =
+    Number(m[2]);
+
+  if(coefficient > 0){
+
+    return puissance % 2 === 0
+      ? "+∞"
+      : "+∞";
+
+  }
+
+  return "-∞";
+
+}
+
+
+/* =========================
+   LIMITES CLASSIQUES
+   ========================= */
+
+function limitesClassiques(q){
+
+  let e = q
+    .replace(/\s+/g,"")
+    .toLowerCase();
+
+  if(e.includes("1/x") &&
+     e.includes("infini")){
+
+    return (
+      "📈 Limite classique\n\n" +
+      "lim (x→∞) 1/x = 0\n\n" +
+      "✅ Résultat : 0"
+    );
+
+  }
+
+  if(
+    e.includes("x^2") &&
+    e.includes("infini")
+  ){
+
+    return (
+      "📈 Limite classique\n\n" +
+      "Lorsque x tend vers +∞, " +
+      "x² tend vers +∞.\n\n" +
+      "✅ Résultat : +∞"
+    );
+
+  }
+
+  return null;
+
+}
+
+        </script>
+        <script>
+
+/* =========================
+   PRIMITIVES
+   ========================= */
+
+function primitiveTerme(coefficient, puissance){
+
+  if(puissance === -1){
+    return coefficient + " ln|x|";
+  }
+
+  let nouvellePuissance = puissance + 1;
+  let nouveauCoefficient =
+    coefficient / nouvellePuissance;
+
+  if(nouvellePuissance === 1){
+    return formaterNombre(nouveauCoefficient) + "x";
+  }
+
+  if(nouveauCoefficient === 1){
+    return "x^" + nouvellePuissance;
+  }
+
+  if(nouveauCoefficient === -1){
+    return "-x^" + nouvellePuissance;
+  }
+
+  return (
+    formaterNombre(nouveauCoefficient) +
+    "x^" +
+    nouvellePuissance
+  );
+
+}
+
+
+/* =========================
+   PRIMITIVE D'UN POLYNÔME
+   ========================= */
+
+function primitivePolynome(expression){
+
+  let e = expression
+    .replace(/\s+/g,"")
+    .replace(/−/g,"-")
+    .replace(/×/g,"*")
+    .replace(/²/g,"^2")
+    .toLowerCase()
+    .replace(/\*/g,"");
+
+  let termes = e
+    .replace(/-/g,"+-")
+    .split("+")
+    .filter(t => t !== "");
+
+  let resultat = [];
+
+  for(let terme of termes){
+
+    let coefficient;
+    let puissance;
+
+    if(terme.includes("x")){
+
+      let parties = terme.split("x");
+      let avant = parties[0];
+
+      if(avant === "" || avant === "+"){
+        coefficient = 1;
+      }
+      else if(avant === "-"){
+        coefficient = -1;
+      }
+      else{
+        coefficient = Number(avant);
+      }
+
+      if(terme.includes("^")){
+        puissance =
+          Number(terme.split("^")[1]);
+      }
+      else{
+        puissance = 1;
+      }
+
+    }else{
+
+      coefficient = Number(terme);
+      puissance = 0;
+
+    }
+
+    if(
+      !isFinite(coefficient) ||
+      !isFinite(puissance)
+    ){
+      return null;
+    }
+
+    resultat.push(
+      primitiveTerme(
+        coefficient,
+        puissance
+      )
+    );
+
+  }
+
+  return resultat
+    .join(" + ")
+    .replace(/\+\s-/g,"- ");
+
+}
+
+
+/* =========================
+   ANALYSE D'UNE PRIMITIVE
+   ========================= */
+
+function analyserPrimitive(q){
+
+  if(
+    !q.includes("primitive") &&
+    !q.includes("intégrale") &&
+    !q.includes("integrale")
+  ){
+    return null;
+  }
+
+  let expression = q
+    .replace(/calcule la primitive de/gi,"")
+    .replace(/calculer la primitive de/gi,"")
+    .replace(/primitive de/gi,"")
+    .replace(/primitive/gi,"")
+    .replace(/intégrale de/gi,"")
+    .replace(/integrale de/gi,"")
+    .trim();
+
+  if(!expression){
+    return "❌ Donne-moi une fonction à intégrer.";
+  }
+
+  let resultat =
+    primitivePolynome(expression);
+
+  if(resultat === null){
+    return (
+      "❌ Je ne reconnais pas encore " +
+      "cette fonction."
+    );
+  }
+
+  return (
+    "∫ Primitive\n\n" +
+
+    "Fonction :\n" +
+    "f(x) = " + expression +
+    "\n\n" +
+
+    "Règle utilisée :\n" +
+    "∫x^n dx = x^(n+1)/(n+1)\n\n" +
+
+    "✅ Une primitive est :\n" +
+    "F(x) = " + resultat +
+    " + C"
+  );
+
+}
+
+        </script>
+        <script>
+
+/* =========================
+   TRIGONOMÉTRIE
+   ========================= */
+
+function analyserTrigonometrie(q){
+
+  let e = q
+    .replace(/,/g,".")
+    .replace(/degrés?/gi,"")
+    .replace(/°/g,"")
+    .replace(/\s+/g,"")
+    .toLowerCase();
+
+  let m = e.match(
+    /^(sin|cos|tan)\((-?\d+(?:\.\d+)?)\)$/
+  );
+
+  if(!m){
+
+    m = e.match(
+      /^(sin|cos|tan)(-?\d+(?:\.\d+)?)$/
+    );
+
+  }
+
+  if(!m){
+    return null;
+  }
+
+  let fonction = m[1];
+  let angle = Number(m[2]);
+
+  let radians =
+    angle * Math.PI / 180;
+
+  let resultat;
+
+  if(fonction === "sin"){
+    resultat = Math.sin(radians);
+  }
+
+  else if(fonction === "cos"){
+    resultat = Math.cos(radians);
+  }
+
+  else{
+    resultat = Math.tan(radians);
+  }
+
+  return (
+    "📐 Trigonométrie\n\n" +
+
+    fonction + "(" +
+    formaterNombre(angle) +
+    "°)\n\n" +
+
+    "Conversion en radians :\n" +
+    angle +
+    " × π / 180\n\n" +
+
+    "≈ " +
+    formaterNombre(radians) +
+    " rad\n\n" +
+
+    "✅ Résultat :\n" +
+    formaterNombre(resultat)
+  );
+
+}
+
+
+/* =========================
+   ANGLE DE BASE
+   ========================= */
+
+function analyserAngle(q){
+
+  let e = q
+    .replace(/,/g,".")
+    .replace(/\s+/g,"")
+    .toLowerCase();
+
+  let m = e.match(
+    /^(sin|cos|tan)\^-1\((-?\d+(?:\.\d+)?)\)$/
+  );
+
+  if(!m){
+    return null;
+  }
+
+  let fonction = m[1];
+  let valeur = Number(m[2]);
+
+  let angle;
+
+  if(fonction === "sin"){
+    angle = Math.asin(valeur);
+  }
+
+  else if(fonction === "cos"){
+    angle = Math.acos(valeur);
+  }
+
+  else{
+    angle = Math.atan(valeur);
+  }
+
+  if(!isFinite(angle)){
+    return "❌ Valeur impossible pour cette fonction.";
+  }
+
+  let degres =
+    angle * 180 / Math.PI;
+
+  return (
+    "📐 Trigonométrie inverse\n\n" +
+
+    fonction + "⁻¹(" +
+    formaterNombre(valeur) +
+    ")\n\n" +
+
+    "✅ Angle ≈ " +
+    formaterNombre(degres) +
+    "°"
+  );
+
+}
+
+
+/* =========================
+   IDENTITÉS TRIGONOMÉTRIQUES
+   ========================= */
+
+function identiteTrigonometrie(q){
+
+  let e = q
+    .replace(/\s+/g,"")
+    .toLowerCase();
+
+  if(
+    e.includes("sin²x+cos²x") ||
+    e.includes("sin^2x+cos^2x")
+  ){
+
+    return (
+      "📐 Identité trigonométrique\n\n" +
+      "sin²(x) + cos²(x) = 1\n\n" +
+      "✅ Résultat : 1"
+    );
+
+  }
+
+  return null;
+
+}
+
+  </script>
+  <script>
+
+/* =========================
+   OUTILS STATISTIQUES
+   ========================= */
+
+function nombresDepuisTexte(q){
+
+  let texte = q
+    .replace(/,/g,".")
+    .replace(/;/g," ");
+
+  let nombres = texte.match(
+    /-?\d+(?:\.\d+)?/g
+  );
+
+  if(!nombres){
+    return [];
+  }
+
+  return nombres.map(Number);
+
+}
+
+
+/* =========================
+   MOYENNE
+   ========================= */
+
+function calculerMoyenne(nombres){
+
+  if(nombres.length === 0){
+    return null;
+  }
+
+  let somme =
+    nombres.reduce(
+      (a,b) => a+b,
+      0
+    );
+
+  return somme / nombres.length;
+
+}
+
+
+/* =========================
+   MÉDIANE
+   ========================= */
+
+function calculerMediane(nombres){
+
+  if(nombres.length === 0){
+    return null;
+  }
+
+  let liste =
+    [...nombres].sort(
+      (a,b) => a-b
+    );
+
+  let milieu =
+    Math.floor(liste.length / 2);
+
+  if(liste.length % 2 === 0){
+
+    return (
+      liste[milieu-1] +
+      liste[milieu]
+    ) / 2;
+
+  }
+
+  return liste[milieu];
+
+}
+
+
+/* =========================
+   VARIANCE
+   ========================= */
+
+function calculerVariance(nombres){
+
+  if(nombres.length === 0){
+    return null;
+  }
+
+  let moyenne =
+    calculerMoyenne(nombres);
+
+  let somme = 0;
+
+  for(let n of nombres){
+
+    somme +=
+      Math.pow(
+        n - moyenne,
+        2
+      );
+
+  }
+
+  return somme / nombres.length;
+
+}
+
+
+/* =========================
+   ÉCART-TYPE
+   ========================= */
+
+function calculerEcartType(nombres){
+
+  let variance =
+    calculerVariance(nombres);
+
+  if(variance === null){
+    return null;
+  }
+
+  return Math.sqrt(variance);
+
+}
+
+
+/* =========================
+   ANALYSE STATISTIQUE
+   ========================= */
+
+function analyserStatistiques(q){
+
+  if(
+    !q.includes("moyenne") &&
+    !q.includes("médiane") &&
+    !q.includes("mediane") &&
+    !q.includes("variance") &&
+    !q.includes("écart-type") &&
+    !q.includes("ecart-type")
+  ){
+    return null;
+  }
+
+  let nombres =
+    nombresDepuisTexte(q);
+
+  if(nombres.length === 0){
+    return "❌ Je ne trouve aucune donnée numérique.";
+  }
+
+  let moyenne =
+    calculerMoyenne(nombres);
+
+  let mediane =
+    calculerMediane(nombres);
+
+  let variance =
+    calculerVariance(nombres);
+
+  let ecart =
+    calculerEcartType(nombres);
+
+  return (
+    "📊 Statistiques\n\n" +
+
+    "Données :\n" +
+    nombres.join(" ; ") +
+    "\n\n" +
+
+    "Nombre de valeurs : " +
+    nombres.length +
+    "\n\n" +
+
+    "Moyenne : " +
+    formaterNombre(moyenne) +
+    "\n\n" +
+
+    "Médiane : " +
+    formaterNombre(mediane) +
+    "\n\n" +
+
+    "Variance : " +
+    formaterNombre(variance) +
+    "\n\n" +
+
+    "Écart-type : " +
+    formaterNombre(ecart)
+  );
+
+}
+
+
+/* =========================
+   FACTORIELLE
+   ========================= */
+
+function factorielle(n){
+
+  if(n < 0 || !Number.isInteger(n)){
+    return null;
+  }
+
+  let resultat = 1;
+
+  for(let i=2;i<=n;i++){
+    resultat *= i;
+  }
+
+  return resultat;
+
+}
+
+
+/* =========================
+   COMBINAISONS
+   ========================= */
+
+function combinaison(n,k){
+
+  if(
+    !Number.isInteger(n) ||
+    !Number.isInteger(k) ||
+    k < 0 ||
+    k > n
+  ){
+    return null;
+  }
+
+  let resultat =
+    factorielle(n) /
+    (
+      factorielle(k) *
+      factorielle(n-k)
+    );
+
+  return resultat;
+
+}
+
+
+/* =========================
+   PROBABILITÉ SIMPLE
+   ========================= */
+
+function probabiliteSimple(favorables,total){
+
+  if(
+    total <= 0 ||
+    favorables < 0 ||
+    favorables > total
+  ){
+    return null;
+  }
+
+  return favorables / total;
+
+}
+
+  </script>
+  <script>
+
+/* =========================
+   GÉOMÉTRIE
+   ========================= */
+
+function analyserGeometrie(q){
+
+  let e = q
+    .replace(/,/g,".")
+    .replace(/²/g,"^2")
+    .replace(/°/g,"")
+    .replace(/\s+/g," ")
+    .toLowerCase()
+    .trim();
+
+
+  /* =====================
+     CARRÉ
+     ===================== */
+
+  let m = e.match(
+    /carré.*côté\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let c = Number(m[1]);
+
+    if(c < 0) return "❌ Un côté ne peut pas être négatif.";
+
+    let aire = c*c;
+    let perimetre = 4*c;
+
+    return (
+      "⬛ Carré\n\n" +
+      "Côté = " + c + "\n\n" +
+      "Aire = côté²\n" +
+      "= " + c + "²\n" +
+      "= " + formaterNombre(aire) +
+      "\n\n" +
+      "Périmètre = 4 × côté\n" +
+      "= " + formaterNombre(perimetre)
+    );
+
+  }
+
+
+  /* =====================
+     RECTANGLE
+     ===================== */
+
+  m = e.match(
+    /rectangle.*(?:longueur|l)\s*(-?\d+(?:\.\d+)?).*?(?:largeur|l)\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let longueur = Number(m[1]);
+    let largeur = Number(m[2]);
+
+    if(longueur < 0 || largeur < 0){
+      return "❌ Les dimensions doivent être positives.";
+    }
+
+    let aire = longueur * largeur;
+    let perimetre =
+      2 * (longueur + largeur);
+
+    return (
+      "▭ Rectangle\n\n" +
+      "Longueur = " + longueur +
+      "\nLargeur = " + largeur +
+      "\n\n" +
+      "Aire = longueur × largeur\n" +
+      "= " + formaterNombre(aire) +
+      "\n\n" +
+      "Périmètre = 2(L + l)\n" +
+      "= " + formaterNombre(perimetre)
+    );
+
+  }
+
+
+  /* =====================
+     CERCLE
+     ===================== */
+
+  m = e.match(
+    /cercle.*(?:rayon|r)\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let rayon = Number(m[1]);
+
+    if(rayon < 0){
+      return "❌ Le rayon doit être positif.";
+    }
+
+    let aire =
+      Math.PI * rayon * rayon;
+
+    let circonference =
+      2 * Math.PI * rayon;
+
+    return (
+      "⭕ Cercle\n\n" +
+      "Rayon = " + rayon +
+      "\n\n" +
+      "Aire = πr²\n" +
+      "≈ " +
+      formaterNombre(aire) +
+      "\n\n" +
+      "Circonférence = 2πr\n" +
+      "≈ " +
+      formaterNombre(circonference)
+    );
+
+  }
+
+
+  /* =====================
+     PYTHAGORE
+     ===================== */
+
+  m = e.match(
+    /(?:hypoténuse|hypotenuse).*?(\d+(?:\.\d+)?).*?(\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let a = Number(m[1]);
+    let b = Number(m[2]);
+
+    let h =
+      Math.sqrt(a*a + b*b);
+
+    return (
+      "📐 Théorème de Pythagore\n\n" +
+      "h² = a² + b²\n\n" +
+      "h² = " +
+      a + "² + " +
+      b + "²\n\n" +
+      "h = √(" +
+      (a*a + b*b) +
+      ")\n\n" +
+      "✅ h = " +
+      formaterNombre(h)
+    );
+
+  }
+
+
+  /* =====================
+     TRIANGLE
+     ===================== */
+
+  m = e.match(
+    /triangle.*base\s*(-?\d+(?:\.\d+)?).*hauteur\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let base = Number(m[1]);
+    let hauteur = Number(m[2]);
+
+    if(base < 0 || hauteur < 0){
+      return "❌ Les dimensions doivent être positives.";
+    }
+
+    let aire =
+      base * hauteur / 2;
+
+    return (
+      "🔺 Triangle\n\n" +
+      "Aire = (base × hauteur) / 2\n\n" +
+      "= (" +
+      base + " × " +
+      hauteur +
+      ") / 2\n\n" +
+      "✅ Aire = " +
+      formaterNombre(aire)
+    );
+
+  }
+
+
+  return null;
+}
+
+
+/* =========================
+   VOLUME
+   ========================= */
+
+function analyserVolume(q){
+
+  let e = q
+    .replace(/,/g,".")
+    .replace(/\s+/g," ")
+    .toLowerCase();
+
+  let m = e.match(
+    /cube.*côté\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let c = Number(m[1]);
+
+    return (
+      "🧊 Cube\n\n" +
+      "Volume = côté³\n\n" +
+      "= " + c + "³\n\n" +
+      "✅ Volume = " +
+      formaterNombre(c*c*c)
+    );
+
+  }
+
+  m = e.match(
+    /cylindre.*rayon\s*(-?\d+(?:\.\d+)?).*hauteur\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(m){
+
+    let r = Number(m[1]);
+    let h = Number(m[2]);
+
+    let volume =
+      Math.PI * r * r * h;
+
+    return (
+      "🥫 Cylindre\n\n" +
+      "V = πr²h\n\n" +
+      "V ≈ " +
+      formaterNombre(volume)
+    );
+
+  }
+
+  return null;
+}
+
+  </script>
+  <script>
+
+/* =========================
+   SUITES
+   ========================= */
+
+function analyserSuite(q){
+
+  let e = q
+    .replace(/,/g,".")
+    .replace(/\s+/g," ")
+    .toLowerCase();
+
+  let m = e.match(
+    /suite.*premier terme\s*(-?\d+(?:\.\d+)?).*raison\s*(-?\d+(?:\.\d+)?)/
+  );
+
+  if(!m) return null;
+
+  let premier = Number(m[1]);
+  let raison = Number(m[2]);
+
+  let termes = [];
+
+  for(let i=0;i<10;i++){
+    termes.push(
+      premier + i * raison
+    );
+  }
+
+  return (
+    "🔢 Suite arithmétique\n\n" +
+    "Premier terme = " + premier +
+    "\nRaison = " + raison +
+    "\n\n" +
+    "Les 10 premiers termes :\n" +
+    termes
+      .map(formaterNombre)
+      .join(" ; ")
+  );
+}
+
+
+/* =========================
+   FACTORIELLE
+   ========================= */
+
+function analyserFactorielle(q){
+
+  let m = q.match(
+    /(\d+)\s*!/
+  );
+
+  if(!m) return null;
+
+  let n = Number(m[1]);
+  let resultat = factorielle(n);
+
+  if(resultat === null){
+    return "❌ Factorielle impossible.";
+  }
+
+  return (
+    "🔢 Factorielle\n\n" +
+    n + "! = " +
+    formaterNombre(resultat)
+  );
+}
+
+
+/* =========================
+   COMBINAISONS
+   ========================= */
+
+function analyserCombinaison(q){
+
+  let m = q.match(
+    /(?:c|combinaison)\s*\(?\s*(\d+)\s*[;,]\s*(\d+)\s*\)?/i
+  );
+
+  if(!m) return null;
+
+  let n = Number(m[1]);
+  let k = Number(m[2]);
+
+  let resultat =
+    combinaison(n,k);
+
+  if(resultat === null){
+    return "❌ Combinaison impossible.";
+  }
+
+  return (
+    "🎯 Combinaison\n\n" +
+    "C(" + n + " ; " + k + ")\n\n" +
+    "n! / (k!(n-k)!)\n\n" +
+    "✅ Résultat = " +
+    formaterNombre(resultat)
+  );
+}
+
+
+/* =========================
+   VECTEURS
+   ========================= */
+
+function analyserVecteur(q){
+
+  let m = q.match(
+    /vecteur\s*\(?\s*(-?\d+(?:\.\d+)?)\s*[;,]\s*(-?\d+(?:\.\d+)?)\s*\)?/i
+  );
+
+  if(!m) return null;
+
+  let x = Number(m[1]);
+  let y = Number(m[2]);
+
+  let norme =
+    Math.sqrt(x*x + y*y);
+
+  return (
+    "➡️ Vecteur\n\n" +
+    "u = (" + x + " ; " + y + ")\n\n" +
+    "Norme :\n" +
+    "||u|| = √(x² + y²)\n\n" +
+    "||u|| = √(" +
+    (x*x + y*y) +
+    ")\n\n" +
+    "✅ ||u|| = " +
+    formaterNombre(norme)
+  );
+}
+
+
+/* =========================
+   MATRICE 2×2
+   ========================= */
+
+function analyserMatrice(q){
+
+  let m = q.match(
+    /matrice\s*\[\s*(-?\d+)\s+(-?\d+)\s*;\s*(-?\d+)\s+(-?\d+)\s*\]/i
+  );
+
+  if(!m) return null;
+
+  let a = Number(m[1]);
+  let b = Number(m[2]);
+  let c = Number(m[3]);
+  let d = Number(m[4]);
+
+  let determinant =
+    a*d - b*c;
+
+  return (
+    "🔢 Matrice 2×2\n\n" +
+    "[" + a + "  " + b + "]\n" +
+    "[" + c + "  " + d + "]\n\n" +
+    "Déterminant :\n" +
+    "D = ad - bc\n\n" +
+    "D = " +
+    a + "×" + d +
+    " - " +
+    b + "×" + c +
+    "\n\n" +
+    "✅ D = " +
+    formaterNombre(determinant)
+  );
+}
+
+  </script>
+  <script>
+
+/* =========================
+   CERVEAU CENTRAL
+   ========================= */
+
+function analyserMaths(q){
+
+  q = nettoyer(q);
+
+  /* SALUTATIONS */
+
+  if(
+    q.includes("bonjour") ||
+    q.includes("salut") ||
+    q.includes("hello")
+  ){
+    return "👋 Bonjour ! Je suis EduBot Maths Ultra.\n\nPose-moi ton problème de maths.";
+  }
+
+  if(q.includes("merci")){
+    return "😊 Avec plaisir !";
+  }
+
+
+  /* MATRICES */
+
+  let matrice =
+    analyserMatrice(q);
+
+  if(matrice){
+    return matrice;
+  }
+
+
+  /* VECTEURS */
+
+  let vecteur =
+    analyserVecteur(q);
+
+  if(vecteur){
+    return vecteur;
+  }
+
+
+  /* SUITES */
+
+  let suite =
+    analyserSuite(q);
+
+  if(suite){
+    return suite;
+  }
+
+
+  /* FACTORIELLE */
+
+  let fact =
+    analyserFactorielle(q);
+
+  if(fact){
+    return fact;
+  }
+
+
+  /* COMBINAISONS */
+
+  let comb =
+    analyserCombinaison(q);
+
+  if(comb){
+    return comb;
+  }
+
+
+  /* SYSTÈMES */
+
+  let systeme =
+    moteurSysteme(q);
+
+  if(systeme){
+    return systeme;
+  }
+
+
+  /* INÉQUATIONS */
+
+  let inequation =
+    moteurInequation(q);
+
+  if(inequation){
+    return inequation;
+  }
+
+
+  /* SECOND DEGRÉ */
+
+  let second =
+    moteurSecondDegre(q);
+
+  if(second){
+    return second;
+  }
+
+
+  /* PREMIER DEGRÉ */
+
+  let equation =
+    moteurEquation(q);
+
+  if(equation){
+    return equation;
+  }
+
+
+  /* TRIGONOMÉTRIE */
+
+  let trigo =
+    analyserTrigonometrie(q);
+
+  if(trigo){
+    return trigo;
+  }
+
+  let angle =
+    analyserAngle(q);
+
+  if(angle){
+    return angle;
+  }
+
+  let identiteTrigo =
+    identiteTrigonometrie(q);
+
+  if(identiteTrigo){
+    return identiteTrigo;
+  }
+
+
+  /* GÉOMÉTRIE */
+
+  let geometrie =
+    analyserGeometrie(q);
+
+  if(geometrie){
+    return geometrie;
+  }
+
+  let volume =
+    analyserVolume(q);
+
+  if(volume){
+    return volume;
+  }
+
+
+  /* STATISTIQUES */
+
+  let statistiques =
+    analyserStatistiques(q);
+
+  if(statistiques){
+    return statistiques;
+  }
+
+
+  /* DÉRIVÉES */
+
+  let derivee =
+    analyserDerivee(q);
+
+  if(derivee){
+    return derivee;
+  }
+
+
+  /* PRIMITIVES */
+
+  let primitive =
+    analyserPrimitive(q);
+
+  if(primitive){
+    return primitive;
+  }
+
+
+  /* LIMITES */
+
+  let limite =
+    analyserLimite(q);
+
+  if(limite){
+    return limite;
+  }
+
+  let limite2 =
+    limitesClassiques(q);
+
+  if(limite2){
+    return limite2;
+  }
+
+
+  /* ALGÈBRE */
+
+  let algebre =
+    moteurAlgebre(q);
+
+  if(algebre){
+    return algebre;
+  }
+
+
+  /* CALCUL */
+
+  let calcul =
+    moteurCalcul(q);
+
+  if(calcul){
+    return calcul;
+  }
+
+
+  /* RIEN TROUVÉ */
+
+  return (
+    "🤔 Je n'ai pas encore reconnu ce problème.\n\n" +
+    "Tu peux essayer :\n\n" +
+
+    "🧮 25 + 17 × 3\n" +
+    "📐 2x + 5 = 17\n" +
+    "📊 moyenne 12 15 18\n" +
+    "📈 dérivée de 3x^2 + 2x\n" +
+    "∫ primitive de 4x^3\n" +
+    "√144\n" +
+    "sin(30)\n" +
+    "🔺 triangle base 8 hauteur 5\n" +
+    "➡️ vecteur (3 ; 4)\n" +
+    "🔢 matrice [1 2 ; 3 4]\n" +
+    "🔢 suite premier terme 2 raison 3"
+  );
+
+}
+
+
+/* =========================
+   ENVOI
+   ========================= */
+
+envoyer.onclick = function(){
+
+  repondre();
+
+};
+
+
+/* =========================
+   ENTRÉE CLAVIER
+   ========================= */
+
+question.addEventListener(
+  "keydown",
+  function(e){
+
+    if(e.key === "Enter"){
+      repondre();
+    }
+
+  }
+);
+
+
+console.log(
+  "🧠 EduBot Maths Ultra : moteur chargé."
+);
+
+  </script>
+  <style>
+
+/* =========================
+   CLAVIER MATHÉMATIQUE
+   ========================= */
+
+#clavierMath{
+  display:grid;
+  grid-template-columns:
+    repeat(4,1fr);
+  gap:6px;
+  margin-top:10px;
+}
+
+#clavierMath button{
+  padding:14px 5px;
+  font-size:17px;
+  background:#263238;
+}
+
+#clavierMath button:active{
+  background:#1976d2;
+}
+
+#effacer{
+  background:#b71c1c !important;
+}
+
+@media(max-width:500px){
+
+  #chat{
+    height:58vh;
+  }
+
+  #clavierMath button{
+    padding:12px 4px;
+    font-size:15px;
+  }
+
+}
+
+</style>
+
+
+<script>
+
+/* =========================
+   CLAVIER TACTILE
+   ========================= */
+
+const clavier =
+document.createElement("div");
+
+clavier.id = "clavierMath";
+
+const touches = [
+  "7","8","9","÷",
+  "4","5","6","×",
+  "1","2","3","−",
+  "0",".","+","=",
+  "x","^","²","√",
+  "(",
+  ")",
+  "%",
+  "⌫"
+];
+
+touches.forEach(function(touche){
+
+  const bouton =
+    document.createElement("button");
+
+  bouton.textContent = touche;
+
+  bouton.type = "button";
+
+  bouton.onclick = function(){
+
+    if(touche === "⌫"){
+
+      question.value =
+        question.value.slice(
+          0,
+          -1
+        );
+
+      question.focus();
+
+      return;
+    }
+
+
+    if(touche === "="){
+
+      repondre();
+
+      return;
+    }
+
+
+    if(touche === "√"){
+
+      question.value += "√";
+
+      question.focus();
+
+      return;
+    }
+
+
+    if(touche === "²"){
+
+      question.value += "^2";
+
+      question.focus();
+
+      return;
+    }
+
+
+    question.value += touche;
+
+    question.focus();
+
+  };
+
+  clavier.appendChild(bouton);
+
+});
+
+
+document
+  .getElementById("zoneSaisie")
+  .after(clavier);
+
+
+/* =========================
+   MESSAGE FINAL
+   ========================= */
+
+console.log(
+  "✅ EduBot Maths Ultra est prêt !"
+);
+
+</script>
+
+</body>
+</html>
