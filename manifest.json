@@ -1,0 +1,9 @@
+{
+  "name": "EduBot Maths Ultra",
+  "short_name": "EduBot",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#101820",
+  "theme_color": "#1976d2",
+  "lang": "fr"
+}
